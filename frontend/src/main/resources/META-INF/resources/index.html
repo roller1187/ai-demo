@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h2>X-Ray Security Scanner</h2>
+    <input type="file" id="imageInput" accept="image/*">
+    <button onclick="uploadAndDetect()">Scan Bag</button>
+    
+    <div style="position: relative; margin-top: 20px;">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        async function uploadAndDetect() {
+            const fileInput = document.getElementById('imageInput');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            // 1. Call your Quarkus Endpoint
+            const response = await fetch('/scan', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            // 2. Draw Image to Canvas
+            const img = new Image();
+            img.src = URL.createObjectURL(fileInput.files[0]);
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                // 3. Draw Bounding Boxes
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 5;
+                ctx.fillStyle = 'red';
+                ctx.font = '25px Arial';
+
+                data.detections.forEach(det => {
+                    const [xmin, ymin, xmax, ymax] = det.box;
+                    ctx.strokeRect(xmin, ymin, xmax - xmin, ymax - ymin);
+                    ctx.fillText(`${det.label} (${(det.confidence * 100).toFixed(1)}%)`, xmin, ymin - 10);
+                });
+            };
+        }
+    </script>
+</body>
+</html>
