@@ -1,47 +1,172 @@
 <!DOCTYPE html>
-<html>
-<body>
-    <h2>X-Ray Security Scanner</h2>
-    <input type="file" id="imageInput" accept="image/*">
-    <button onclick="uploadAndDetect()">Scan Bag</button>
-    
-    <div style="position: relative; margin-top: 20px;">
-        <canvas id="canvas"></canvas>
-    </div>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X-Ray Vision | AI Threat Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .scanner-line {
+            height: 2px;
+            background: rgba(239, 68, 68, 0.5);
+            box-shadow: 0 0 15px 5px rgba(239, 68, 68, 0.5);
+            position: absolute;
+            width: 100%;
+            top: 0;
+            animation: scan 2s linear infinite;
+            display: none;
+        }
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+    <nav class="border-b border-slate-800 p-4 mb-8 glass sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-red-500 to-orange-400 bg-clip-text text-transparent">
+                X-RAY AI SCANNER
+            </h1>
+            <div class="flex items-center space-x-2 text-xs uppercase tracking-widest text-slate-400">
+                <span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span>System Online</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 pb-12">
+        
+        <div class="lg:col-span-2 space-y-6">
+            <div id="dropzone" class="relative group border-2 border-dashed border-slate-700 rounded-2xl p-4 transition-all hover:border-red-500 hover:bg-slate-900/50 cursor-pointer overflow-hidden aspect-video flex items-center justify-center">
+                <div id="scannerLine" class="scanner-line"></div>
+                
+                <div id="uploadPrompt" class="text-center">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-slate-500 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <p class="text-lg font-medium">Drag baggage X-ray here</p>
+                    <p class="text-sm text-slate-500">Supported: PNG, JPG (Max 20MB)</p>
+                </div>
+
+                <canvas id="canvas" class="hidden absolute inset-0 w-full h-full object-contain"></canvas>
+                <input type="file" id="fileInput" class="hidden" accept="image/*">
+            </div>
+
+            <button onclick="performScan()" id="scanBtn" class="w-full py-4 bg-red-600 hover:bg-red-700 disabled:bg-slate-800 disabled:text-slate-500 rounded-xl font-bold transition-all transform active:scale-95 flex justify-center items-center space-x-2">
+                <span>START ANALYSIS</span>
+            </button>
+        </div>
+
+        <div class="space-y-6">
+            <div class="glass rounded-2xl p-6 h-full border border-slate-800">
+                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Analysis Log</h2>
+                
+                <div id="log" class="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div class="text-slate-500 text-sm italic">Waiting for input...</div>
+                </div>
+
+                <div id="statusBadge" class="mt-6 p-4 rounded-xl border border-dashed border-slate-700 text-center hidden">
+                    </div>
+            </div>
+        </div>
+    </main>
 
     <script>
-        async function uploadAndDetect() {
-            const fileInput = document.getElementById('imageInput');
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const log = document.getElementById('log');
+        const scannerLine = document.getElementById('scannerLine');
+
+        // Handle File Selection
+        dropzone.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => handleFile(e.target.files[0]);
+
+        function addLog(msg, type = 'info') {
+            const colors = { info: 'text-blue-400', danger: 'text-red-500', success: 'text-green-400' };
+            const time = new Date().toLocaleTimeString([], {hour12: false});
+            log.innerHTML = `<div class="text-sm"><span class="text-slate-600 mr-2">${time}</span><span class="${colors[type]}">${msg}</span></div>` + log.innerHTML;
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    canvas.classList.remove('hidden');
+                    document.getElementById('uploadPrompt').classList.add('hidden');
+                    addLog("Image loaded. Ready for scan.");
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function performScan() {
+            const file = fileInput.files[0];
+            if (!file) return alert("Please upload an image first.");
+
+            // UI Feedback: Start
+            scannerLine.style.display = 'block';
+            addLog("Initializing Neural Engine...", "info");
             
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            formData.append('file', file);
 
-            // 1. Call your Quarkus Endpoint
-            const response = await fetch('/scan', { method: 'POST', body: formData });
-            const data = await response.json();
+            try {
+                const response = await fetch('/scan', { method: 'POST', body: formData });
+                const data = await response.json();
+                
+                scannerLine.style.display = 'none';
+                drawResults(data.detections);
+            } catch (err) {
+                addLog("Error: Connection refused.", "danger");
+                scannerLine.style.display = 'none';
+            }
+        }
 
-            // 2. Draw Image to Canvas
-            const img = new Image();
-            img.src = URL.createObjectURL(fileInput.files[0]);
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
+        function drawResults(detections) {
+            const statusBadge = document.getElementById('statusBadge');
+            statusBadge.classList.remove('hidden');
 
-                // 3. Draw Bounding Boxes
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 5;
-                ctx.fillStyle = 'red';
-                ctx.font = '25px Arial';
+            if (detections.length === 0) {
+                addLog("SCAN CLEAN: No threats detected.", "success");
+                statusBadge.className = "mt-6 p-4 rounded-xl bg-green-500/10 border border-green-500/50 text-green-400 font-bold uppercase";
+                statusBadge.innerText = "✓ PASS: CLEAN";
+            } else {
+                addLog(`CRITICAL: ${detections.length} threat(s) found!`, "danger");
+                statusBadge.className = "mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/50 text-red-500 font-bold uppercase animate-bounce";
+                statusBadge.innerText = "⚠ THREAT DETECTED";
 
-                data.detections.forEach(det => {
+                detections.forEach(det => {
                     const [xmin, ymin, xmax, ymax] = det.box;
+                    
+                    // Box
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 8;
                     ctx.strokeRect(xmin, ymin, xmax - xmin, ymax - ymin);
-                    ctx.fillText(`${det.label} (${(det.confidence * 100).toFixed(1)}%)`, xmin, ymin - 10);
+                    
+                    // Label
+                    ctx.fillStyle = '#ef4444';
+                    ctx.font = 'bold 32px Inter, system-ui';
+                    const label = `${det.label} ${(det.confidence * 100).toFixed(0)}%`;
+                    ctx.fillText(label, xmin, ymin - 15);
+                    
+                    addLog(`Detected: ${det.label} (${(det.confidence * 100).toFixed(1)}%)`, "danger");
                 });
-            };
+            }
         }
     </script>
 </body>
