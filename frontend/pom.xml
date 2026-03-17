@@ -97,4 +97,30 @@
         </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>openshift</id>
+            <dependencies>
+                <dependency>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-openshift</artifactId>
+                </dependency>
+            </dependencies>
+            <properties>
+                <quarkus.openshift.build-strategy>S2I</quarkus.openshift.build-strategy>
+            </properties>
+        </profile>
+        <profile>
+            <id>native</id>
+            <activation>
+                <property>
+                    <name>native</name>
+                </property>
+            </activation>
+            <properties>
+                <skipITs>false</skipITs>
+                <quarkus.package.type>native</quarkus.package.type>
+            </properties>
+        </profile>
+    </profiles>
 </project>
