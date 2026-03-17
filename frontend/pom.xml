@@ -100,6 +100,11 @@
     <profiles>
         <profile>
             <id>openshift</id>
+            <activation>
+                <property>
+                    <name>openshift</name>
+                </property>
+            </activation>
             <dependencies>
                 <dependency>
                     <groupId>io.quarkus</groupId>
@@ -107,7 +112,8 @@
                 </dependency>
             </dependencies>
             <properties>
-                <quarkus.openshift.build-strategy>S2I</quarkus.openshift.build-strategy>
+                <quarkus.openshift.build-strategy>s2i</quarkus.openshift.build-strategy>
+                <quarkus.kubernetes.deploy>false</quarkus.kubernetes.deploy>
             </properties>
         </profile>
         <profile>
