@@ -32,3 +32,8 @@ async def analyze(file: UploadFile = File(...)):
         })
     
     return {"detections": detections}
+
+if __name__ == "__main__":
+    import uvicorn
+    # This command starts the server and BLOCKS the script from exiting
+    uvicorn.run(app, host="0.0.0.0", port=8080)
