@@ -1,4 +1,4 @@
-package ai-demo.detection;
+package com.redhat.aidemo.detection;
 
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.resteasy.reactive.RestForm;

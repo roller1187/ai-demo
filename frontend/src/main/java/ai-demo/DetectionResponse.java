@@ -1,4 +1,4 @@
-package ai-demo.detection;
+package com.redhat.aidemo.detection;
 
 import java.util.List;
 
