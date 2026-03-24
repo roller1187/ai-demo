@@ -173,7 +173,7 @@
             addLog(`Origin: ${data.traveler.origin} | Warrants: ${data.traveler.history.warrants}`, "info");
 
             // Display Final Recommendation
-            const statusBadge = document.getElementById('statusBadge');
+            statusBadge = document.getElementById('statusBadge');
             statusBadge.innerText = data.recommendation;
 
             if (data.recommendation.includes("ARREST")) {
