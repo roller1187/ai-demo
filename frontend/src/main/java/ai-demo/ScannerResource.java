@@ -18,7 +18,6 @@ public class ScannerResource {
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Produces(MediaType.APPLICATION_JSON)
     public DetectionResponse scanImage(@RestForm("file") File file) {
-        // Forward the file to the Python Model Container
         return detectionClient.analyze(file);
     }
 }
