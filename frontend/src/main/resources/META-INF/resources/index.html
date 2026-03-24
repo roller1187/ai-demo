@@ -167,6 +167,24 @@
                     addLog(`Detected: ${det.label} (${(det.confidence * 100).toFixed(1)}%)`, "danger");
                 });
             }
+
+            // Display Traveler Info in the Log
+            addLog(`--- SCREENING SUBJECT: ${data.traveler.name} ---`, "info");
+            addLog(`Origin: ${data.traveler.origin} | Warrants: ${data.traveler.history.warrants}`, "info");
+
+            // Display Final Recommendation
+            const statusBadge = document.getElementById('statusBadge');
+            statusBadge.innerText = data.recommendation;
+
+            if (data.recommendation.includes("ARREST")) {
+                statusBadge.className = "mt-6 p-4 rounded-xl bg-red-600 text-white font-black animate-pulse";
+            } else if (data.recommendation.includes("DETAIN")) {
+                statusBadge.className = "mt-6 p-4 rounded-xl bg-orange-500 text-white font-bold";
+            } else if (data.recommendation.includes("SEARCH")) {
+                statusBadge.className = "mt-6 p-4 rounded-xl bg-yellow-400 text-black font-bold";
+            } else {
+                statusBadge.className = "mt-6 p-4 rounded-xl bg-green-500 text-white font-bold";
+            }
         }
     </script>
 </body>
