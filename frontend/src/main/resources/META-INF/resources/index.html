@@ -140,15 +140,14 @@
         function drawResults(detections) {
             const statusBadge = document.getElementById('statusBadge');
             statusBadge.classList.remove('hidden');
+            statusBadge.innerText = data.recommendation;
 
             if (detections.length === 0) {
                 addLog("SCAN CLEAN: No threats detected.", "success");
                 statusBadge.className = "mt-6 p-4 rounded-xl bg-green-500/10 border border-green-500/50 text-green-400 font-bold uppercase";
-                statusBadge.innerText = "✓ PASS: CLEAN";
             } else {
                 addLog(`CRITICAL: ${detections.length} threat(s) found!`, "danger");
                 statusBadge.className = "mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/50 text-red-500 font-bold uppercase animate-bounce";
-                statusBadge.innerText = "⚠ THREAT DETECTED";
 
                 detections.forEach(det => {
                     const [xmin, ymin, xmax, ymax] = det.box;
@@ -173,9 +172,6 @@
             addLog(`Origin: ${data.traveler.origin} | Warrants: ${data.traveler.history.warrants}`, "info");
 
             // Display Final Recommendation
-            statusBadge = document.getElementById('statusBadge');
-            statusBadge.innerText = data.recommendation;
-
             if (data.recommendation.includes("ARREST")) {
                 statusBadge.className = "mt-6 p-4 rounded-xl bg-red-600 text-white font-black animate-pulse";
             } else if (data.recommendation.includes("DETAIN")) {
