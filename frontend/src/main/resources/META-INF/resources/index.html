@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>X-Ray Threat Scanner</title>
+    <title>X-Ray AI Security Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .scanner-line { height: 2px; background: rgba(239, 68, 68, 0.5); box-shadow: 0 0 15px 5px rgba(239, 68, 68, 0.5); position: absolute; width: 100%; top: 0; animation: scan 2s linear infinite; display: none; }
@@ -14,6 +14,7 @@
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
     <nav class="border-b border-slate-800 p-4 mb-8 glass sticky top-0 z-50">
         <div class="max-w-6xl mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold bg-gradient-to-r from-red-500 to-orange-400 bg-clip-text text-transparent">X-RAY AI SCANNER</h1>
@@ -30,21 +31,21 @@
                 <div id="scannerLine" class="scanner-line"></div>
                 <div id="uploadPrompt" class="text-center">
                     <svg class="w-16 h-16 mx-auto mb-4 text-slate-500 group-hover:text-red-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                    <p class="text-lg font-medium">Click to upload X-ray</p>
+                    <p class="text-lg font-medium">Click or Drag baggage X-ray</p>
                 </div>
                 <canvas id="canvas" class="hidden absolute inset-0 w-full h-full object-contain"></canvas>
                 <input type="file" id="fileInput" class="hidden" accept="image/*">
             </div>
-            <button onclick="performScan()" id="scanBtn" class="w-full py-4 bg-red-600 hover:bg-red-700 rounded-xl font-bold transition-all active:scale-95">START ANALYSIS</button>
+            <button onclick="performScan()" id="scanBtn" class="w-full py-4 bg-red-600 hover:bg-red-700 rounded-xl font-bold transition-all transform active:scale-95">START SECURITY ANALYSIS</button>
         </div>
 
         <div class="space-y-6">
             <div class="glass rounded-2xl p-6 h-full border border-slate-800">
-                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Analysis Results</h2>
-                <div id="log" class="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar flex flex-col-reverse">
-                    <div class="text-slate-500 text-sm italic">Waiting for input...</div>
+                <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Screening Log</h2>
+                <div id="log" class="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar flex flex-col-reverse text-xs">
+                    <div class="text-slate-500 italic">System ready...</div>
                 </div>
-                <div id="statusBadge" class="mt-6 p-4 rounded-xl border border-dashed border-slate-700 text-center hidden"></div>
+                <div id="statusBadge" class="mt-6 p-4 rounded-xl border border-dashed border-slate-700 text-center hidden uppercase font-black"></div>
             </div>
         </div>
     </main>
@@ -64,7 +65,7 @@
             const colors = { info: 'text-blue-400', danger: 'text-red-500', success: 'text-green-400' };
             const time = new Date().toLocaleTimeString([], {hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
             const div = document.createElement('div');
-            div.className = "text-xs border-l-2 border-slate-800 pl-2 py-1";
+            div.className = "border-l-2 border-slate-800 pl-2 py-1";
             div.innerHTML = `<span class="text-slate-600 mr-2">${time}</span><span class="${colors[type]}">${msg}</span>`;
             log.appendChild(div);
         }
@@ -79,7 +80,7 @@
                     ctx.drawImage(img, 0, 0);
                     canvas.classList.remove('hidden');
                     document.getElementById('uploadPrompt').classList.add('hidden');
-                    addLog("Image loaded into scanner.");
+                    addLog("X-ray image buffered.");
                 };
                 img.src = e.target.result;
             };
@@ -87,9 +88,9 @@
         }
 
         async function performScan() {
-            if (!fileInput.files[0]) return alert("Select an image.");
+            if (!fileInput.files[0]) return alert("Please select an image.");
             scannerLine.style.display = 'block';
-            addLog("Checking traveler manifest...", "info");
+            addLog("Connecting to Neural Engine...", "info");
             
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
@@ -99,38 +100,40 @@
                 const data = await response.json();
                 scannerLine.style.display = 'none';
                 
-                addLog(`Subject Identified: ${data.traveler.name}`, "info");
-                addLog(`Background: ${data.traveler.history.prior_arrests} priors`, data.traveler.history.prior_arrests > 0 ? "danger" : "info");
+                addLog(`Subject: ${data.traveler.name}`, "info");
+                if(data.traveler.history.prior_arrests > 0) {
+                    addLog(`Alert: ${data.traveler.history.prior_arrests} prior(s). Charges: ${data.traveler.history.charges}`, "danger");
+                }
                 
-                drawResults(data);
+                displayFinalResults(data);
             } catch (err) {
-                addLog("Error connecting to AI engine.", "danger");
+                addLog("Neural Link Error: Check container logs.", "danger");
                 scannerLine.style.display = 'none';
             }
         }
 
-        function drawResults(data) {
-            const statusBadge = document.getElementById('statusBadge');
-            statusBadge.classList.remove('hidden');
-            statusBadge.innerText = data.recommendation;
+        function displayFinalResults(data) {
+            const badge = document.getElementById('statusBadge');
+            badge.classList.remove('hidden');
+            badge.innerText = data.recommendation;
 
             if (data.recommendation.includes("ARREST") || data.recommendation.includes("DETAIN")) {
-                statusBadge.className = "mt-6 p-4 rounded-xl bg-red-600/20 border border-red-500 text-red-500 font-black uppercase animate-pulse";
+                badge.className = "mt-6 p-4 rounded-xl bg-red-600/20 border border-red-500 text-red-500 font-black animate-pulse";
             } else if (data.recommendation.includes("SEARCH")) {
-                statusBadge.className = "mt-6 p-4 rounded-xl bg-yellow-500/20 border border-yellow-500 text-yellow-500 font-bold uppercase";
+                badge.className = "mt-6 p-4 rounded-xl bg-yellow-500/20 border border-yellow-500 text-yellow-500 font-bold";
             } else {
-                statusBadge.className = "mt-6 p-4 rounded-xl bg-green-500/20 border border-green-500 text-green-500 font-bold uppercase";
+                badge.className = "mt-6 p-4 rounded-xl bg-green-500/20 border border-green-500 text-green-500 font-bold";
             }
 
             data.detections.forEach(det => {
                 const [xmin, ymin, xmax, ymax] = det.box;
                 ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 10;
                 ctx.strokeRect(xmin, ymin, xmax - xmin, ymax - ymin);
-                ctx.fillStyle = '#ef4444'; ctx.font = 'bold 40px sans-serif';
+                ctx.fillStyle = '#ef4444'; ctx.font = 'bold 36px monospace';
                 ctx.fillText(`${det.label} ${(det.confidence * 100).toFixed(0)}%`, xmin, ymin - 15);
-                addLog(`Detected: ${det.label}`, "danger");
+                addLog(`Threat Detected: ${det.label}`, "danger");
             });
-            if (data.detections.length === 0) addLog("No visual threats found.", "success");
+            if (data.detections.length === 0) addLog("No high-density prohibited items found.", "success");
         }
     </script>
 </body>
