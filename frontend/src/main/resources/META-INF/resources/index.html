@@ -118,7 +118,7 @@
                     addLog(`Charges: ${data.traveler.history.charges}`, "danger");
                 }
 
-                if(data.traveler.history.has_warrant) {
+                if(data.traveler.history.warrants === "Yes") {
                     addLog(`Active Warrant: YES`, "danger");
                 } else {
                     addLog(`Active Warrant: NO`, "success");
