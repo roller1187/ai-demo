@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>X-Ray AI Security Terminal</title>
+    <title>X-Ray Vision | AI Threat Detection</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .scanner-line { height: 2px; background: rgba(239, 68, 68, 0.5); box-shadow: 0 0 15px 5px rgba(239, 68, 68, 0.5); position: absolute; width: 100%; top: 0; animation: scan 2s linear infinite; display: none; }
@@ -11,6 +11,8 @@
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        /* Smooth scrolling for the log */
+        #log { scroll-behavior: smooth; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
@@ -42,7 +44,7 @@
         <div class="space-y-6">
             <div class="glass rounded-2xl p-6 h-full border border-slate-800">
                 <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Screening Log</h2>
-                <div id="log" class="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar flex flex-col-reverse text-xs">
+                <div id="log" class="space-y-3 h-[350px] overflow-y-auto pr-2 custom-scrollbar flex flex-col text-xs">
                     <div class="text-slate-500 italic">System ready...</div>
                 </div>
                 <div id="statusBadge" class="mt-6 p-4 rounded-xl border border-dashed border-slate-700 text-center hidden uppercase font-black"></div>
@@ -65,9 +67,14 @@
             const colors = { info: 'text-blue-400', danger: 'text-red-500', success: 'text-green-400' };
             const time = new Date().toLocaleTimeString([], {hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
             const div = document.createElement('div');
-            div.className = "border-l-2 border-slate-800 pl-2 py-1";
+            div.className = "border-l-2 border-slate-800 pl-2 py-1 flex-shrink-0";
             div.innerHTML = `<span class="text-slate-600 mr-2">${time}</span><span class="${colors[type]}">${msg}</span>`;
+            
+            // Append to bottom
             log.appendChild(div);
+            
+            // Auto-scroll to the new entry
+            log.scrollTop = log.scrollHeight;
         }
 
         function handleFile(file) {
@@ -89,6 +96,10 @@
 
         async function performScan() {
             if (!fileInput.files[0]) return alert("Please select an image.");
+            
+            // Clear status from previous scan
+            document.getElementById('statusBadge').classList.add('hidden');
+            
             scannerLine.style.display = 'block';
             addLog("Connecting to Neural Engine...", "info");
             
@@ -102,7 +113,8 @@
                 
                 addLog(`Subject: ${data.traveler.name}`, "info");
                 if(data.traveler.history.prior_arrests > 0) {
-                    addLog(`Alert: ${data.traveler.history.prior_arrests} prior(s). Charges: ${data.traveler.history.charges}`, "danger");
+                    addLog(`Alert: ${data.traveler.history.prior_arrests} prior(s).`, "danger");
+                    addLog(`Charges: ${data.traveler.history.charges}`, "danger");
                 }
                 
                 displayFinalResults(data);
@@ -131,9 +143,11 @@
                 ctx.strokeRect(xmin, ymin, xmax - xmin, ymax - ymin);
                 ctx.fillStyle = '#ef4444'; ctx.font = 'bold 36px monospace';
                 ctx.fillText(`${det.label} ${(det.confidence * 100).toFixed(0)}%`, xmin, ymin - 15);
-                addLog(`Threat Detected: ${det.label}`, "danger");
+                addLog(`Threat Detected: ${det.label} (${(det.confidence * 100).toFixed(0)}%)`, "danger");
             });
             if (data.detections.length === 0) addLog("No high-density prohibited items found.", "success");
+            
+            addLog("Analysis Complete.", "info");
         }
     </script>
 </body>

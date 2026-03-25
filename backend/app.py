@@ -31,13 +31,13 @@ except Exception as e:
 def determine_security_action(weapon_found, prior_arrests, has_warrant):
     """Correlation logic for security recommendations"""
     if weapon_found and has_warrant:
-        return "🚨 CRITICAL ARREST:\n Weapon detected on subject with active warrant."
+        return "🚨 CRITICAL ARREST:\n Weapon detected on subject with active warrant.\n‼️EXTREME RISK‼️ Trap subject and notify law enforcement."
     elif weapon_found:
-        return "🚨 LAW ENFORCEMENT DETAIN:\n Prohibited weapon detected. Notify law enforcement."
+        return "⛔️ LAW ENFORCEMENT DETAIN:\nProhibited weapon detected.\n🚨 Notify law enforcement."
     elif has_warrant:
-        return "🚨 DETAIN:\n Subject has an active warrant for arrest. Notify law enforcement."
+        return "✋ DETAIN:\n Subject has an active warrant for arrest.\n🚨 Notify law enforcement."
     elif prior_arrests > 0:
-        return "⚠️ INTENSIVE SEARCH:\n High-risk background. Perform manual bag search."
+        return "⚠️ INTENSIVE SEARCH:\n High-risk background.\n🔎 Perform manual bag search."
     else:
         return "✅ PASS: No scanning or background threats found."
 
