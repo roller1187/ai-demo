@@ -116,6 +116,12 @@
                     addLog(`Alert: ${data.traveler.history.prior_arrests} prior(s).`, "danger");
                     addLog(`Charges: ${data.traveler.history.charges}`, "danger");
                 }
+
+                if(data.traveler.history.has_warrant) {
+                    addLog(`Active Warrant: YES`, "danger");
+                } else {
+                    addLog(`Active Warrant: NO`, "success");
+                }
                 
                 displayFinalResults(data);
             } catch (err) {
