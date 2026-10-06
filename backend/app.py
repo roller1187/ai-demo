@@ -1,21 +1,23 @@
 from fastapi import FastAPI, UploadFile, File
-import torch
-from transformers import DetrImageProcessor, DetrForObjectDetection
-from PIL import Image
+import base64
+import httpx
 import io
 import pandas as pd
-import random
 import os
 
 app = FastAPI(title="X-Ray Security & Traveler Screening API")
 
-# 1. Load AI Model once on startup
-MODEL_NAME = "NabilaLM/detr-weapons-detection"
-processor = DetrImageProcessor.from_pretrained(MODEL_NAME)
-model = DetrForObjectDetection.from_pretrained(MODEL_NAME)
+# 1. Remote DETR Model Service (configurable via env var)
+MODEL_SERVICE_URL = os.environ.get(
+    "MODEL_SERVICE_URL",
+    "https://detr-weapons-detection-demo-models.apps.aromerot.redhat-openshift.com"
+)
+MODEL_NAME = os.environ.get("MODEL_NAME", "detr-weapons-detection")
+PREDICT_URL = f"{MODEL_SERVICE_URL}/v1/models/{MODEL_NAME}:predict"
+
+print(f"✅ Using remote model service: {PREDICT_URL}")
 
 # 2. Load Traveler Records
-# Make sure records-db.csv is in the same directory or adjust path
 csv_path = "records-db.csv"
 try:
     if os.path.exists(csv_path):
@@ -27,6 +29,7 @@ try:
 except Exception as e:
     print(f"❌ Error loading records: {e}")
     traveler_db = pd.DataFrame()
+
 
 def determine_security_action(weapon_found, prior_arrests, has_warrant):
     """Correlation logic for security recommendations"""
@@ -41,44 +44,55 @@ def determine_security_action(weapon_found, prior_arrests, has_warrant):
     else:
         return "✅ PASS: No scanning or background threats found."
 
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
     # Read image from request
     contents = await file.read()
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
-    
-    # AI Inference
-    inputs = processor(images=image, return_tensors="pt")
-    with torch.no_grad():
-        outputs = model(**inputs)
-    
-    # Process results
-    target_sizes = torch.tensor([image.size[::-1]])
-    results = processor.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.75)[0]
-    
+
+    # Encode image as base64 for KServe v1 API
+    b64_image = base64.b64encode(contents).decode("utf-8")
+
+    # Call remote DETR model service
+    async with httpx.AsyncClient(verify=False, timeout=30.0) as client:
+        response = await client.post(
+            PREDICT_URL,
+            json={"instances": [b64_image]}
+        )
+        response.raise_for_status()
+        model_response = response.json()
+
+    # Process detections from model response
     detections = []
     weapon_detected = False
-    for score, label, box in zip(results["scores"], results["labels"], results["boxes"]):
-        label_name = model.config.id2label[label.item()]
-        
-        # Check if detected object is a weapon
-        is_weapon = label_name in ['gun', 'pistol', 'weapon', 'LABEL_1']
-        if is_weapon: weapon_detected = True
-        
-        detections.append({
-            "label": "WEAPON" if is_weapon else label_name,
-            "confidence": round(float(score), 4),
-            "box": [round(i, 2) for i in box.tolist()] # [xmin, ymin, xmax, ymax]
-        })
+
+    predictions = model_response.get("predictions", [{}])
+    if predictions:
+        raw_detections = predictions[0].get("detections", [])
+        for det in raw_detections:
+            label_name = det.get("label", "unknown")
+            confidence = det.get("confidence", 0.0)
+            box = det.get("box", [0, 0, 0, 0])
+
+            # Check if detected object is a weapon
+            is_weapon = label_name.lower() in ['gun', 'pistol', 'weapon', 'label_1']
+            if is_weapon:
+                weapon_detected = True
+
+            detections.append({
+                "label": "WEAPON" if is_weapon else label_name,
+                "confidence": round(float(confidence), 4),
+                "box": [round(float(i), 2) for i in box]
+            })
 
     # Criminal Record Database Correlation
     if not traveler_db.empty:
         record = traveler_db.sample(n=1).iloc[0].to_dict()
     else:
         record = {
-            "Full Name": "Unknown Subject", 
-            "Prior Arrests": 0, 
-            "Pending Warrants": "No", 
+            "Full Name": "Unknown Subject",
+            "Prior Arrests": 0,
+            "Pending Warrants": "No",
             "Country of Origin": "Unknown",
             "Date of Birth": "Unknown",
             "List of Charges": ""
@@ -106,9 +120,11 @@ async def analyze(file: UploadFile = File(...)):
         "recommendation": recommendation
     }
 
+
 @app.get("/health")
 def health():
     return {"status": "ready"}
+
 
 # The following starts the server and blocks the script from exiting
 if __name__ == "__main__":
