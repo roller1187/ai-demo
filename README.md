@@ -35,15 +35,20 @@ This solution is specifically designed for **Transportation Security Administrat
                            ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │              PYTHON AI DETECTION SERVICE                          │
-│              (FastAPI + PyTorch + Transformers)                   │
+│                    (FastAPI + httpx)                               │
 │                                                                    │
 │  ┌────────────────────┐         ┌────────────────────────┐       │
-│  │   DETR AI Model    │         │   FBI Database         │       │
-│  │  Weapon Detection  │         │   Record Correlation   │       │
-│  │  (75% confidence)  │         │   (Warrants + Arrests) │       │
-│  └─────────┬──────────┘         └───────────┬────────────┘       │
-│            │                                 │                    │
-│            └────────────┬────────────────────┘                    │
+│  │  Remote Model Call │         │   FBI Database         │       │
+│  │  (KServe v1 API)   │────┐    │   Record Correlation   │       │
+│  │                     │    │    │   (Warrants + Arrests) │       │
+│  └─────────┬──────────┘    │    └───────────┬────────────┘       │
+│            │               │                 │                    │
+│            │    ┌──────────┴─────────┐       │                    │
+│            │    │  OpenShift AI /    │       │                    │
+│            │    │  KServe / GPU      │       │                    │
+│            │    │  Model Server      │       │                    │
+│            │    └────────────────────┘       │                    │
+│            └────────────┬───────────────────┘                    │
 │                         ▼                                         │
 │            ┌─────────────────────────┐                            │
 │            │  Security Logic Engine  │                            │
@@ -67,9 +72,9 @@ This solution is specifically designed for **Transportation Security Administrat
 - **Language**: Python 3.9+
 - **Framework**: FastAPI (async REST API)
 - **AI Model**: DETR (DEtection TRansformer) for weapon detection
+- **Inference**: Calls an externally hosted model via KServe v1 API (e.g., Red Hat OpenShift AI, KServe, or any compatible endpoint)
 - **Libraries**: 
-  - PyTorch (deep learning runtime)
-  - Transformers (Hugging Face model hub)
+  - httpx (async HTTP client for remote model calls)
   - Pillow (image processing)
   - Pandas (data correlation)
 
@@ -94,7 +99,34 @@ This solution is specifically designed for **Transportation Security Administrat
 - Pre-trained DETR (Detection Transformer) fine-tuned on X-ray weapon imagery
 - Detects: guns, pistols, knives, and other prohibited items
 - Confidence threshold: **75%** (tunable for TSA requirements)
-- Real-time inference: ~200-500ms per image on CPU
+- Real-time inference: ~200-500ms per image on CPU, ~50-100ms on GPU
+
+### Model Serving Configuration
+
+The backend calls an externally hosted DETR model via the **KServe v1 predict API**. This is ideal when running the model on a GPU-accelerated platform like **Red Hat OpenShift AI**, **KServe**, or any service exposing a KServe v1-compatible endpoint.
+
+Configure the model endpoint using environment variables:
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `MODEL_SERVICE_URL` | `https://detr-weapons-detection-demo-models.apps.aromerot.redhat-openshift.com` | Base URL of the model serving endpoint |
+| `MODEL_NAME` | `detr-weapons-detection` | Model name registered in the serving runtime |
+
+The backend calls `POST {MODEL_SERVICE_URL}/v1/models/{MODEL_NAME}:predict` with the image encoded as base64.
+
+```bash
+# Example: point to your own model server
+export MODEL_SERVICE_URL=https://my-detr-service.apps.my-cluster.example.com
+export MODEL_NAME=detr-weapons-detection
+python app.py
+```
+
+**Benefits**:
+- Lightweight backend container — no model weights or ML frameworks needed
+- GPU-accelerated inference via the model server
+- Backend starts instantly (no model loading delay)
+- Scale the backend and model server independently
+- Swap models by changing the URL — no code changes required
 
 **Detection Output**:
 ```json
@@ -162,11 +194,11 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**Summary**: Install FastAPI, PyTorch, Transformers, and other Python dependencies. The DETR model weights (~300MB) will download automatically on first run.
+**Summary**: Install FastAPI, httpx, and other Python dependencies. The backend is lightweight — no ML frameworks required since inference is handled by the remote model server.
 
 **Expected Output**:
 ```
-Successfully installed fastapi uvicorn torch transformers timm pillow pandas
+Successfully installed fastapi uvicorn httpx pillow pandas
 ```
 
 ---
@@ -174,11 +206,15 @@ Successfully installed fastapi uvicorn torch transformers timm pillow pandas
 ### Step 3: Test the AI Backend Locally
 
 ```bash
+# Set the URL of your model serving endpoint
+export MODEL_SERVICE_URL=https://your-detr-service.example.com
+export MODEL_NAME=detr-weapons-detection
+
 # Start the FastAPI server
 python app.py
 ```
 
-**Summary**: Launch the AI detection service on `http://localhost:8080`. The service will load the DETR weapon detection model into memory (takes ~10-20 seconds).
+**Summary**: Launch the AI detection service on `http://localhost:8080`. The backend starts instantly and forwards inference requests to the configured model server.
 
 **Test the API**:
 ```bash
@@ -558,20 +594,23 @@ echo "Access the application at: https://$ROUTE_URL"
 
 ## Troubleshooting
 
-### Issue: Backend fails to load AI model
+### Issue: Backend cannot reach model server
 
 **Symptoms**:
 ```
-Error: No module named 'transformers'
+httpx.ConnectError: Connection refused
 ```
 
 **Solution**:
 ```bash
-# Reinstall dependencies
-pip install --upgrade -r requirements.txt
+# Verify MODEL_SERVICE_URL is set correctly
+echo $MODEL_SERVICE_URL
 
-# Verify PyTorch installation
-python -c "import torch; print(torch.__version__)"
+# Test the model server endpoint directly
+curl -s $MODEL_SERVICE_URL/v1/models/$MODEL_NAME
+
+# Reinstall dependencies if needed
+pip install --upgrade -r requirements.txt
 ```
 
 ---
@@ -645,18 +684,16 @@ To correlate with TSA PreCheck, No-Fly List, or Interpol databases:
 
 ### Enabling GPU Acceleration
 
-For faster inference, deploy backend on GPU nodes:
+GPU acceleration is handled by the **model server**, not the backend. Deploy your DETR model on a GPU-equipped node using OpenShift AI or KServe, then point the backend at it:
 
 ```bash
-# Add GPU resource request to deployment
-oc patch deployment/python-ai-service --type='json' \
-  -p='[{"op": "add", "path": "/spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu", "value": "1"}]'
+# Set the backend to use your GPU-accelerated model server
+oc set env deployment/python-ai-service \
+  MODEL_SERVICE_URL=https://your-gpu-model-server.example.com \
+  MODEL_NAME=detr-weapons-detection
 ```
 
-**Update requirements.txt**:
-```
-torch --index-url https://download.pytorch.org/whl/cu118  # CUDA 11.8
-```
+The backend itself is CPU-only and lightweight — it just forwards images to the model server and processes the results.
 
 ## Architecture Decisions
 
@@ -671,10 +708,11 @@ torch --index-url https://download.pytorch.org/whl/cu118  # CUDA 11.8
 - **No Anchor Boxes**: Simpler architecture, easier to fine-tune
 - **Pre-trained**: Available on Hugging Face with weapons detection fine-tuning
 
-### Why Separate Backend/Frontend?
-- **Scalability**: Scale AI inference pods independently from web UI
-- **Security**: Backend never exposed to public internet
-- **Technology Choice**: Best tool for each job (Python for ML, Java for enterprise)
+### Why Separate Backend/Frontend/Model?
+- **Scalability**: Scale the web UI, backend logic, and AI inference independently
+- **Security**: Backend and model server never exposed to the public internet
+- **Technology Choice**: Best tool for each job (Python for orchestration, Java for enterprise UI, GPU nodes for inference)
+- **Flexibility**: Swap models by changing a URL — no code changes needed
 
 ## Contributing
 
