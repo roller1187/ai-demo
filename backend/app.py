@@ -72,7 +72,12 @@ async def analyze(file: UploadFile = File(...)):
         for det in raw_detections:
             label_name = det.get("label", "unknown")
             confidence = det.get("confidence", 0.0)
-            box = det.get("box", [0, 0, 0, 0])
+            raw_box = det.get("box", [0, 0, 0, 0])
+            if isinstance(raw_box, dict):
+                box = [raw_box.get("xmin", 0), raw_box.get("ymin", 0),
+                       raw_box.get("xmax", 0), raw_box.get("ymax", 0)]
+            else:
+                box = raw_box
 
             # Check if detected object is a weapon
             is_weapon = label_name.lower() in ['gun', 'pistol', 'weapon', 'label_1']
